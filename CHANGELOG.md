@@ -8,21 +8,22 @@ All notable changes to the AutomationHQ Standalone Agent.
 - Consolidated 8 per-environment workflows into a single `build-signed-release.yml` with partner matrix (AHQ + Intelion)
 - Switched distribution from S3/CloudFront to GitHub Releases (per-partner release repos)
 - Standardized on npm everywhere (local + CI), removed bun dependency
-- Added `package-lock.json` with npm caching (`actions/setup-node cache: 'npm'`) for faster CI installs
+- Added `package-lock.json` with npm caching for faster CI installs
 - Pinned all dependencies to exact versions (no `^` prefixes)
-- All platforms use `actions/checkout@v4` with proper Git LFS support for Windows JRE binaries
+- All platforms use `actions/checkout@v4` with proper Git LFS support
 - Windows: code signing via certificate store (USB thumbdrive), no more `CSC_LINK` env var
 - Mac: notarization via `notarytool` (Xcode 13+), `appBundleId` sourced from electron-builder context
-- Per-platform "Verify prerequisites" step installs `gh` CLI if missing
-- `fail-fast: true` + `max-parallel: 1` ensures AHQ builds first; Intelion cancelled on AHQ failure
-- Removed `build.ps1` wrapper (no longer needed)
+- electron-builder publishes directly to GitHub Releases (removed manual upload steps)
+- Pre-check job blocks builds if release exists unless "overwrite" is enabled
+- Post-publish job syncs CHANGELOG and release notes to partner repos
 
 ### Build System
-- `build.mjs` auto-detects platform via `process.platform` (no more manual target argument)
-- `shell.mjs` uses `shell: true` for cross-platform spawn compatibility (Windows `.cmd` shim resolution)
+- `build.mjs` auto-detects CI via `process.env.CI` and passes `--publish always`
+- `shell.mjs` uses `shell: true` only on Windows (avoids Node deprecation warning)
 - `notarize.mjs` reads `appBundleId` from `context.packager.appInfo.id` instead of `APP_ID` env var
 - `electron-builder.json` generated dynamically per partner with correct `publish` config
 - Enforced npm-only via `preinstall: "npx only-allow npm"`
+- JRE permissions auto-fixed before build (Azul Zulu ships read-only .jsa files)
 
 ### JRE & Platform Support
 - Upgraded all bundled JREs to Azul Zulu 21.0.10 (was OpenLogic JDK 17 on mac, Temurin 21 on win)
@@ -32,14 +33,12 @@ All notable changes to the AutomationHQ Standalone Agent.
 - Runtime JRE selection based on `process.arch` on Windows and Linux
 - Added `latest-mac.yml` + `.zip` target for macOS auto-updates (pkg alone doesn't generate update metadata)
 - Upload blockmap files for delta updates on all platforms
-- electron-builder now publishes directly to GitHub Releases (removed manual upload steps)
 
 ### Dependencies
+- Upgraded Electron 40 → 41, vitest 4.0 → 4.1, commitlint 20.4 → 20.5
 - Downgraded ESLint 10 → 9.39.4 (eslint-plugin-react-hooks doesn't support ESLint 10)
 - Updated `@typescript-eslint/*` to 8.57.0
-- Upgraded Electron 40 → 41, vitest 4.0 → 4.1, commitlint 20.4 → 20.5
 - Removed bun engine requirement from `package.json`
-- Version bumped from 6.0.1 to 7.0.0
 
 ### Auto-Updater — GitHub Releases
 - Switched auto-updater from S3 store URLs to GitHub Releases with per-partner repos
@@ -49,13 +48,20 @@ All notable changes to the AutomationHQ Standalone Agent.
 
 ---
 
-## [6.0.1] - 2026-03-05
+## [6.1.0] - 2026-03-09
+
+### Build Tooling
+- Remove redundant partner name from artifact filename
+- Drop `CSC_LINK` env var from CI (certificate store only)
+
+---
+
+## [6.0.1] - 2026-03-08
 
 ### Build Tooling
 - Template-based → JSON config generation for electron-builder
 - Replace `execa` with `shellInherit` for process spawning
 - Use `agentBundleId-local-agent` for artifact naming
-- Remove redundant partner name from artifact filename
 - Skip code signing and notarization in unsigned release workflow
 - Flatten `scripts/builders/` directory structure
 - Add unsigned multi-platform release workflow with tag-push trigger
@@ -81,7 +87,7 @@ All notable changes to the AutomationHQ Standalone Agent.
 
 ---
 
-## [6.0.0] - 2026-02-28
+## [6.0.0] - 2026-03-03
 
 ### Phase 8: Foundation — Tech Debt & AppConfig Split
 - Remove `rejectUnauthorized: false` from axios instance
@@ -112,18 +118,40 @@ All notable changes to the AutomationHQ Standalone Agent.
 - Per-environment folder archival with cancel button on token replace
 
 ### Quick Tasks (v6.0 cycle)
-- **Quick-1**: Fix jar archival empty folder recreation
-- **Quick-2**: JWT history backend + UI (storage, IPC, toggle/select/remove)
-- **Quick-3**: Starting timeout and idle-stop guard for ProcessLifecycleService
-- **Quick-5**: Create `setup.json` with partner overrides (later reverted to dynamic lookup)
-- **Quick-6**: Remove `.runner` folder, consolidate token storage into `electron-store`
-- **Quick-7**: Unsigned multi-platform release workflow
-- **Quick-8**: Rename VITE-prefixed env vars, remove apiBuilderUrl from app config
-- **Quick-9**: Runtime updater URL from JWT + progress window infrastructure
+- Fix jar archival empty folder recreation
+- JWT history backend + UI (storage, IPC, toggle/select/remove)
+- Starting timeout and idle-stop guard for ProcessLifecycleService
+- Remove `.runner` folder, consolidate token storage into `electron-store`
+- Unsigned multi-platform release workflow
+- Rename VITE-prefixed env vars, remove apiBuilderUrl from app config
+- Runtime updater URL from JWT + progress window infrastructure
 
 ---
 
-## [1.1.0] - 2026-03-02
+## [5.4.8] - 2026-02-19
+
+_Complete architectural rewrite (Phases 1–7). Internal milestones v1.0 and v1.1._
+
+### Phase 1: Foundation — Shared Infrastructure
+- Create shared directory with types, IPC constants, and `AppConfig`
+- Install `jose`, create JWT utility, update tsconfigs and vite config
+- Convert `require()` to ESM imports, remove deprecated packages
+- Replace IPC string literals with constants
+- Replace `import.meta.env` with `AppConfig`
+
+### Phase 2: JWT Configuration System
+- Create `LoggerService` with constructor injection (file + IPC + in-memory ring buffer)
+- Add JWKS verification to `jwt.ts`, install `electron-store`
+- Create `ConfigService` with JWT verification and persistence
+- Add JWT paste UI and enhance LogsModal
+- Wire ConfigService with JWT/config IPC handlers
+- Connect protocol URL handler to ConfigService for JWT processing
+- Wire JWT-derived base URL into axios HTTP client
+
+### Phase 3: Process Lifecycle
+- Create `JarDownloadService` with HTTP Range resume download, retry, and ZIP extract
+- Create `ProcessLifecycleService` with 7-state machine, health check, and crash recovery
+- Wire services into composition root, extend preload bridge
 
 ### Phase 4: App Shell — Tray, Window, Update, Lifecycle
 - Create `TrayService` with persistent tray, dynamic state icons, and context menu
@@ -133,7 +161,6 @@ All notable changes to the AutomationHQ Standalone Agent.
 - Create centralized IPC registry with typed handler groups (3 groups, 14 invoke + 9 event channels)
 - Rewrite `index.ts` as 48-line composition root with constructor injection
 - Add `paths` helper and `download-orchestrator` modules
-- Switch to bun, upgrade all packages
 
 ### Phase 5: UI Modernization
 - Apply DaisyUI 5 + React 19 updates
@@ -144,44 +171,291 @@ All notable changes to the AutomationHQ Standalone Agent.
 - Convert `electron-builder.yml` to env interpolation
 - Refactor `asset.builder.mjs` to env-only injection
 - Create reusable workflow `build-agent.yml` with thin callers per product/environment
-- Replace 6 duplicated workflows with thin callers
 
 ### Phase 7: Test Suite
 - Configure Vitest with Electron mock helpers
-- Add LoggerService and ConfigService unit tests
-- Add ProcessLifecycleService unit tests (16 tests)
-- Add JarDownloadService and IPC registry unit tests (14 tests)
+- Add LoggerService, ConfigService, ProcessLifecycleService unit tests
+- Add JarDownloadService and IPC registry unit tests
 - Add JWT paste → environment switch integration tests
 - Add JAR download → start → health check integration tests
 - **Total: 92 tests across 8 files**
 
 ---
 
-## [1.0.0] - 2026-02-28
+## [5.4.7] - 2026-01-30
 
-### Phase 1: Foundation — Shared Infrastructure
-- Create shared directory with types, IPC constants, and `AppConfig`
-- Install `jose`, create JWT utility, update tsconfigs and vite config
-- Convert `require()` to ESM imports, remove deprecated packages
-- Replace IPC string literals with constants
-- Replace `import.meta.env` with `AppConfig`
-- Resolve TypeScript errors in web tsconfig context
+- UI changes (AHQ_D-1684)
 
-### Phase 2: JWT Configuration System
-- Extend shared contracts with JWT/config IPC channels
-- Create `LoggerService` with constructor injection (file + IPC + in-memory ring buffer)
-- Add JWKS verification to `jwt.ts`, install `electron-store`
-- Create `ConfigService` with JWT verification and persistence
-- Add JWT paste UI and enhance LogsModal
-- Wire ConfigService with JWT/config IPC handlers
-- Connect protocol URL handler to ConfigService for JWT processing
+---
 
-### Phase 2.1: Gap Closure
-- Wire JWT-derived base URL into axios HTTP client
-- Fix `onLogStream` listener reference mismatch in preload
+## [5.4.6] - 2026-01-30
 
-### Phase 3: Process Lifecycle
-- Create shared process types and extend IPC channels
-- Create `JarDownloadService` with HTTP Range resume download, retry, and ZIP extract
-- Create `ProcessLifecycleService` with 7-state machine, health check, and crash recovery
-- Wire services into composition root, extend preload bridge
+- UI changes and build fixes
+
+---
+
+## [5.4.5] - 2026-01-30
+
+- CI/CD: Linux agent for UTAP, ECR image verification GHA
+- Partner Intelion prod agent GHA updates
+
+---
+
+## [5.4.4] - 2026-01-28
+
+- CI/CD: Push selenium image GHA
+- Partner Intelion build updates
+
+---
+
+## [5.4.3] - 2026-01-27
+
+- UI changes (AHQ_D-1887)
+
+---
+
+## [5.4.1] - 2026-01-02
+
+- UI changes (AHQ_D-966)
+- Partner test GHA build update
+- Cleanup and exit when catch
+
+---
+
+## [5.4.0] - 2025-12-30
+
+- Switched from bun to npm
+- Partner Intelion path updates
+- Devtools documentation update
+
+---
+
+## [5.3.6] - 2025-12-11
+
+- Protocol name change (AHQ_D-1778)
+- Partner Intelion Linux build agent GHA
+
+---
+
+## [5.3.5] - 2025-12-06
+
+### Downloads & Process
+- Resumable download of JAR file with graceful handling
+- EBUSY removal fix (AHQ_D-1712)
+- Version scanning from ZIP
+
+### UI
+- Agent download progress display
+- Restart button
+- Logs success/error display, JAR failure showing
+- Current agent name in title and tooltip
+
+### Build
+- macOS PKG format builder
+- Schemas fix for protocols
+- Package upgrades
+
+---
+
+## [5.3.2] - 2025-11-21
+
+- Separate protocols for different builds
+- Disable auto-update of agent itself
+
+---
+
+## [5.3.1] - 2025-11-21
+
+### Features
+- Re-download stop (AHQ_D-1562)
+- Update available failure screen update (AHQ_D-995)
+- Logs modal stream + download log file
+- Chrome driver from resourcesPath
+
+### Build & CI
+- Unified build process across all environments
+- Certificate signing via `CSC_IDENTITY_SHA1`
+- Trivy security scan + Gitleaks scan
+- Linux agent builds for all environments
+
+### Fixes
+- Electron logs directory fix
+- Zip downloader multiple-times fix
+- Modal CSS fix (dialog to div migration)
+
+---
+
+## [5.2.6] - 2025-10-18
+
+- Self-certification rejection
+- Partner store URL from env
+- Check for Updates text change
+- Added environments configuration
+- CI/CD: UTAP/Intelion GHA updates
+
+---
+
+## [5.2.5] - 2025-10-05
+
+- One-click installer
+- Check for Updates feature
+- Then-chain to await/async refactor
+- Rehash script for Windows
+- Partner store URL from env
+
+---
+
+## [5.2.4] - 2025-09-27
+
+- JAR download failure management (AHQ_D-1164)
+- License updates (AHQ + Intelion)
+- Unpackaged folder location change to userData
+- Auto update for agent
+- Provider URL fixes
+
+---
+
+## [5.2.3] - 2025-09-27
+
+- Reconnecting ping in catch
+- UTAP build actions
+
+---
+
+## [5.2.2] - 2025-09-24
+
+### Features
+- Auto-update feature (electron-updater manual implementation)
+- Create window only when agent boots ready (AHQ_D-816)
+- Hide YouTube intro (AHQ_D-1140)
+- Clear cache button text change (AHQ_D-798)
+
+### Build & CI
+- UTAP Mac agent GHA
+- Updated npm/node to specific versions
+- Using `execa` for process spawning
+- Updated engine versions
+
+### Fixes
+- Various bug fixes (fed-878, fed-859)
+
+---
+
+## [5.2.0] - 2025-05-17
+
+- Version bump only (no additional changes from 5.1.1)
+
+---
+
+## [5.1.1] - 2025-05-17
+
+- Electron logger wrapped as log
+- DigiCert signing integration
+- Dynamic URL for build and project usages (AHQ_D-398)
+- Intelion signed agent push
+- Axios upgrade to latest
+- Various GHA build action updates
+
+---
+
+## [5.1.0] - 2024-11-02
+
+### Features
+- System tray implementation (nativeImage, title, exit code)
+- JWT token handling via URL handler (launch storage, params)
+- Local agent script builder process
+- Window positioning: primary display right-bottom corner
+
+### Build
+- Latest assets builder
+- Platform-specific icon handling
+- dotenv with CLI for notarize CJS
+- Height/width by percentage
+- No suffixes for Windows compatibility
+
+---
+
+## [5.0.1] - 2024-07-20
+
+- API test 3 endpoints
+- Linux build: tar.gz only
+- Notarize CJS fix
+
+---
+
+## [5.0.0] - 2024-07-14
+
+- Updated with API 2.0 changes
+- Added bun, fixed notarization
+- Fix: busy jars await before delete
+- Using `rmSync` for forceful deletion
+
+---
+
+## [4.0.1] - 2024-02-09
+
+- Config clear feature
+- Git LFS for large binary files (JRE)
+- Added JRE for Linux and Mac
+- Removed appImage, added deb package format
+- Build resource updates
+- JRE update
+- Env mode refactoring (cross-env)
+- Fix: operational flickering, download percent display
+
+---
+
+## [4.0.0] - 2023-06-22
+
+_Complete rewrite from Angular to React + electron-vite._
+
+- Migration to React + Electron with electron-vite
+- Electron logger, extra resourcePath
+- Kill port generic function (platform-wise)
+- Reset log after sending
+- New icon set, electron-builder YAML updates
+- Notarization via `@electron/notarize`
+- Moved from pnpm to npm
+- Java spawning error handling improvements
+
+---
+
+## [3.1.0] - 2023-04-02
+
+- Removed Selenium process (direct JAR execution)
+- Added exit button
+
+---
+
+## [3.0.0] - 2022-12-29
+
+- Separated starting service progress circle (AHQDEV-1293)
+- Service status checking every 1-5 minutes (AHQDEV-1251)
+- UI changes for local agent layout
+- Maximum window disable
+- Prerequisite fail/restart behind the scene
+- Fix update button behavior
+
+---
+
+## [2.0.0] - 2022-10-18
+
+- Protocol URL handler (`ahq-agent://`)
+- Custom deep link integration
+- JRE bundling
+- Agent update mechanism
+- Code signing (Windows + macOS notarization)
+- Progress bar UI, version display
+- Try-catch error handling improvements
+- Various UI redesigns (download, restart pages)
+
+---
+
+## [1.0.3] - 2022-04-03
+
+_Initial release — Angular-based Electron app._
+
+- Initial Angular + Electron application
+- Multi-platform installer setup (Windows, macOS, Linux)
+- Test-bot tab feature, start/stop functionality
+- Dev/prod mode URL switching
