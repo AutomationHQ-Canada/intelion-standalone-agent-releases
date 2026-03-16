@@ -24,9 +24,19 @@ All notable changes to the AutomationHQ Standalone Agent.
 - `electron-builder.json` generated dynamically per partner with correct `publish` config
 - Enforced npm-only via `preinstall: "npx only-allow npm"`
 
+### JRE & Platform Support
+- Upgraded all bundled JREs to Azul Zulu 21.0.10 (was OpenLogic JDK 17 on mac, Temurin 21 on win)
+- macOS: universal build (arm64 + x64) with dual JREs (`jre/mac_arm64`, `jre/mac_x64`)
+- Windows: x64 + arm64 JREs (`jre/win_x64`, `jre/win_arm64`), dropped 32-bit support (Electron itself dropped 32-bit Windows support)
+- Linux: x64 + arm64 JREs (`jre/linux_x64`, `jre/linux_arm64`)
+- Runtime JRE selection based on `process.arch` across all platforms
+- Added `latest-mac.yml` + `.zip` target for macOS auto-updates (pkg alone doesn't generate update metadata)
+- Upload blockmap files for delta updates on all platforms
+
 ### Dependencies
 - Downgraded ESLint 10 → 9.39.4 (eslint-plugin-react-hooks doesn't support ESLint 10)
 - Updated `@typescript-eslint/*` to 8.57.0
+- Upgraded Electron 40 → 41, vitest 4.0 → 4.1, commitlint 20.4 → 20.5
 - Removed bun engine requirement from `package.json`
 - Version bumped from 6.0.1 to 7.0.0
 
