@@ -2,15 +2,62 @@
 
 All notable changes to the AutomationHQ Standalone Agent.
 
-## [7.0.1] - 2026-03-24
+## [7.0.1] - 2026-03-28
 
 ### Features
+- Appium mobile automation support with full frontend integration
+  - AppiumService with state machine (Idle/Starting/Running/Stopping/Error), health polling, and 60s startup timeout
+  - Server start/stop/health check with configurable port (1024-65535)
+  - Environment diagnostics via `appium driver doctor` (replaces deprecated `@appium/doctor`)
+  - Connected device listing with model names (Android via ADB, iOS via xcrun on macOS)
+  - Clickable device rows with detail modal showing Name, ID/UDID, Status, Platform with copy buttons
+  - Installed driver listing with version info
+  - Node.js prerequisite detection and status display
+  - Appium bundled at build time via `extraResources` (no user `npm install` required)
+  - Build scripts (`build.mjs`, `dev.mjs`) auto-install appium + drivers into `extra-resources/appium/`
+  - Mobile toggle in Services header — enables/disables Appium, stops server on disable
+- Multi-service startup UI replacing single radial progress
+  - Side-by-side service cards with SVG radial progress rings, percentage display, and status labels
+  - Per-service Start/Stop/Restart controls (hover-revealed) for both JAR and Appium
+  - Settings icon to open Appium Setup panel
+  - Health indicator dots on running services
+- Stop Service IPC (`config:stopService`) for graceful JAR shutdown from UI
+- Shared `shellExec` utility with exit code tracking and optional timeout (extracted from ProcessLifecycleService)
+- Shared SVG icon components (`Icons.tsx`) — CheckIcon, CloseIcon, PlayIcon, StopIcon, RestartIcon, etc.
+- Edit menu always visible (fixes Cmd+C/Ctrl+C not working)
+- Right-click context menu on selected text (not just editable fields)
+- Text selection enabled globally (`user-select: text`)
 - Add Azure fallback for updates and Intelion Azure sync workflow
 - Add release overwrite approval via GitHub issue
 - Save and restore window size when opening/closing logs or about views (new `getWindowSize` IPC channel)
 - Add per-partner default JWT tokens via workflow dispatch to pre-populate token history on first launch
+- Split CI build workflow into separate AHQ and Intelion files with concurrency groups, workspace cleanup, and job timeouts
+- Remove unnecessary Apple secrets from Windows/Linux CI builds
+
+### Security
+- Validate Appium server address against allowlist (127.0.0.1, localhost, 0.0.0.0, ::1)
+- Validate basePath against safe regex pattern
+- Runtime platform validation in `runDoctor` (prevents shell injection via IPC)
+- Strict PID regex in port kill (digit-only extraction)
+- Port validation on health check (1024-65535 range guard)
 
 ### Bug Fixes
+- Fix doctor showing "OK" when command not found (now checks exit code + empty output)
+- Fix Start-after-Stop progress: fake progress smoothly fills to ~90%, completes to 100% only when service reports running
+- Fix Stop button showing "Starting" state (added Stopping/Stopped states to ServiceStatus enum)
+- Handle `idle` and `stopping` process states in renderer (were unhandled, caused UI hang)
+- Persist Appium server state across panel close/reopen (fetches current state on mount)
+- Fix badge vertical misalignment in Appium Server control card
+- Fix Appium card showing "Running" when server not started (now tracks actual server state)
+- Fix duplicate percentage display in service cards (removed from status label, kept in radial ring)
+- Remove all inline SVGs — consolidated into shared `Icons.tsx` (MinusIcon, SettingsIcon, CopyIcon, AlertTriangleIcon added)
+- Fix macOS JRE path: remove `Home/` prefix (Azul JRE 17 tar.gz extracts flat, unlike old JRE 21 bundle)
+- Fix `APPIUM_HOME` not set: drivers were installed to `~/.appium/` instead of bundled directory
+- Fix xcuitest doctor timeout (10s → 30s, xcuitest checks take ~10s)
+- Set `JAVA_HOME` to bundled JRE for appium commands (fixes doctor `JAVA_HOME is NOT set` warning)
+- Pass `APPIUM_HOME` + `JAVA_HOME` env to all appium shell commands and server spawn
+- Fix JRE download in CI: use GitHub API with token instead of `gh` CLI (not available on self-hosted runners)
+- Fix CI downloading all 5 JREs instead of only the platform-relevant ones (e.g. macOS now downloads only mac_x64 + mac_arm64)
 - Use hex colors for modal background to avoid oklch compatibility issue
 - Use correct DaisyUI v5 CSS variable names for modal styles
 - Fetch version before showing "Up to Date" dialog
@@ -31,7 +78,21 @@ All notable changes to the AutomationHQ Standalone Agent.
 - Improve log send success message with clear confirmation
 - Set `package.json` description per partner during build
 
+### Build System
+- JRE 17 downloaded from GitHub Release at dev/build time instead of stored in git (saves ~738MB from repo)
+  - `npm run jre:upload` — downloads JRE 17.0.18+8 from Azul CDN, uploads as zip assets to `jre-17` release tag
+  - Dev downloads only current platform JRE, CI downloads all platforms
+  - Supports 5 platforms: mac_x64, mac_arm64, win_x64, linux_x64, linux_arm64
+- Reorganized `extra-resources/` directory structure: `extra-resources/jre/` and `extra-resources/appium/`
+- Moved setup scripts to `scripts/setup/` subfolder (appium-setup, jre-setup, asset-setup)
+- macOS now resolves correct JRE for Apple Silicon (`mac_arm64`) vs Intel (`mac_x64`)
+
 ### Refactor
+- Extract `shellExec` into shared `src/main/utils/shell-exec.ts` (DRY: was duplicated in ProcessLifecycleService and AppiumService)
+- Extract duplicate SVG icons into shared `Icons.tsx` component
+- Consolidate `mobileEnabled`/`showAppium` state into `isMobileEnabled`/`isAppiumPanelOpen`
+- Remove deprecated `@appium/doctor` dependency, use built-in `appium driver doctor`
+- Self-explanatory naming across all new components (`ServiceCardStatus`, `jarProgressPercent`, `handleStartServer`, etc.)
 - Extract `APP_NAME` constant to DRY up env var access
 
 ---
