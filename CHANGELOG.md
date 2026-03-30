@@ -58,6 +58,7 @@ All notable changes to the AutomationHQ Standalone Agent.
 - Pass `APPIUM_HOME` + `JAVA_HOME` env to all appium shell commands and server spawn
 - Fix JRE download in CI: use GitHub API with token instead of `gh` CLI (not available on self-hosted runners)
 - Fix CI downloading all 5 JREs instead of only the platform-relevant ones (e.g. macOS now downloads only mac_x64 + mac_arm64)
+- Fix macOS codesign failure: dereference symlinks in extra-resources before build (appium `.bin/` symlinks caused "invalid destination for symbolic link in bundle")
 - Use hex colors for modal background to avoid oklch compatibility issue
 - Use correct DaisyUI v5 CSS variable names for modal styles
 - Fetch version before showing "Up to Date" dialog
@@ -81,13 +82,17 @@ All notable changes to the AutomationHQ Standalone Agent.
 ### Build System
 - JRE 17 downloaded from GitHub Release at dev/build time instead of stored in git (saves ~738MB from repo)
   - `npm run jre:upload` — downloads JRE 17.0.18+8 from Azul CDN, uploads as zip assets to `jre-17` release tag
-  - Dev downloads only current platform JRE, CI downloads all platforms
-  - Supports 5 platforms: mac_x64, mac_arm64, win_x64, linux_x64, linux_arm64
+  - Dev downloads only current arch JRE, CI downloads all arches for the build platform
+  - Supports 5 targets: mac_x64, mac_arm64, win_x64, linux_x64, linux_arm64
 - Reorganized `extra-resources/` directory structure: `extra-resources/jre/` and `extra-resources/appium/`
 - Moved setup scripts to `scripts/setup/` subfolder (appium-setup, jre-setup, asset-setup)
 - macOS now resolves correct JRE for Apple Silicon (`mac_arm64`) vs Intel (`mac_x64`)
 
 ### Refactor
+- Unify all build script downloads to `fetch` + `stream/promises` (removed axios from build scripts, replaced callback-based `https.get`)
+- Simplify JRE path resolution in `paths.ts` — single `platformKey`/`archKey` derivation replaces 3 platform switch blocks
+- Simplify `getDevJreKeys`/`getCiJreKeys` with shared `PLATFORM_KEY`/`ARCH_KEY` constants
+- Consolidate split `fs`/`node:fs` imports in `asset-setup.mjs`
 - Extract `shellExec` into shared `src/main/utils/shell-exec.ts` (DRY: was duplicated in ProcessLifecycleService and AppiumService)
 - Extract duplicate SVG icons into shared `Icons.tsx` component
 - Consolidate `mobileEnabled`/`showAppium` state into `isMobileEnabled`/`isAppiumPanelOpen`
