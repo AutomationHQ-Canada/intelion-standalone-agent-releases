@@ -2,6 +2,40 @@
 
 All notable changes to the AutomationHQ Standalone Agent.
 
+## [7.0.1] - 2026-03-24
+
+### Features
+- Add Azure fallback for updates and Intelion Azure sync workflow
+- Add release overwrite approval via GitHub issue
+- Save and restore window size when opening/closing logs or about views (new `getWindowSize` IPC channel)
+- Add per-partner default JWT tokens via workflow dispatch to pre-populate token history on first launch
+
+### Bug Fixes
+- Use hex colors for modal background to avoid oklch compatibility issue
+- Use correct DaisyUI v5 CSS variable names for modal styles
+- Fetch version before showing "Up to Date" dialog
+- Force native light theme on title bar and window chrome for unified design across all OS modes
+- Replace drop-shadow with subtle backdrop for dark mode logo visibility
+- Restart process after failed token replacement or history select
+- Add app name and version to native dialogs for branding
+- Align identity field labels with values properly
+- Await `invalidCache` calls so Reset Everything completes properly
+- Prevent header divider line from breaking on menu hover
+- Scale main container to fill window when resized larger
+- Retain user-expanded window size when navigating between pages
+- Hide Edit menu on execution screen, show only on token paste
+- Show About dialog when on Replace API Token page
+- Remove unnecessary horizontal scrollbar
+- Make error message fully visible when replacing API token
+- Disable resize on token textarea to prevent UI misalignment
+- Improve log send success message with clear confirmation
+- Set `package.json` description per partner during build
+
+### Refactor
+- Extract `APP_NAME` constant to DRY up env var access
+
+---
+
 ## [7.0.0] - 2026-03-16
 
 ### CI/CD — Complete Overhaul
